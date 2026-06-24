@@ -1,92 +1,64 @@
-- const express = require("express");
-- const cors = require("cors");
 
-- // --- REQUIRED IMPORTS ---
-- const express = require("express");
+// --- REQUIRED IMPORTS ---
+const express = require("express");
+const cors = require("cors");
+const Stripe = require("stripe");
 
-+ const express = require("express");
-+ const cors = require("cors");
-+ const Stripe = require("stripe");
+const app = express();
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-+ const app = express();
-+ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+// --- NORMAL JSON FOR EVERYTHING EXCEPT WEBHOOK ---
+app.use(express.json());
+app.use(cors());
 
-- app.use(express.json());
-+ // RAW BODY FOR STRIPE WEBHOOKS
-+ app.use("/webhook", express.raw({ type: "application/json" }));
-+
-+ // NORMAL JSON FOR EVERYTHING ELSE
-+ app.use(express.json());
+// --- STRIPE WEBHOOK ROUTE (RAW BODY REQUIRED) ---
+app.post(
+  "/webhook",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    const sig = req.headers["stripe-signature"];
 
-- app.post("/webhook", (req, res) => {
--   const sig = req.headers["stripe-signature"];
--   let event;
--   try {
--     event = stripe.webhooks.constructEvent(
--       req.body,
--       sig,
--       process.env.STRIPE_WEBHOOK_SECRET
--     );
--   } catch (err) {
--     console.error("❌ Webhook signature verification failed:", err.message);
--     return res.status(400).send(`Webhook Error: ${err.message}`);
--   }
--   console.log("✅ Stripe event received:", event.type);
--   switch (event.type) {
--     case "checkout.session.completed":
--       console.log("💰 Checkout completed");
--       break;
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      console.error("❌ Webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
 
-- const PORT = process.env.PORT || 10000;
-- app.listen(PORT, () => {
--   console.log(`Backend listening on port ${PORT}`);
--     case "invoice.payment_succeeded":
--       console.log("🎉 Payment succeeded");
--       break;
+    console.log("✅ Stripe event received:", event.type);
 
-+ // FIXED WEBHOOK ROUTE
-+ app.post("/webhook", (req, res) => {
-+   const sig = req.headers["stripe-signature"];
-+   let event;
-+
-+   try {
-+     event = stripe.webhooks.constructEvent(
-+       req.body,
-+       sig,
-+       process.env.STRIPE_WEBHOOK_SECRET
-+     );
-+   } catch (err) {
-+     console.error("❌ Webhook signature verification failed:", err.message);
-+     return res.status(400).send(`Webhook Error: ${err.message}`);
-+   }
-+
-+   console.log("✅ Stripe event received:", event.type);
-+
-+   switch (event.type) {
-+     case "checkout.session.completed":
-+       console.log("💰 Checkout completed");
-+       break;
-+     case "invoice.payment_succeeded":
-+       console.log("🎉 Payment succeeded");
-+       break;
-+     case "customer.subscription.created":
-+       console.log("📦 Subscription created");
-+       break;
-+     case "customer.subscription.updated":
-+       console.log("🔄 Subscription updated");
-+       break;
-+     case "customer.subscription.deleted":
-+       console.log("❌ Subscription canceled");
-+       break;
-+     default:
-+       console.log("Unhandled event:", event.type);
-+   }
-+
-+   res.status(200).send("OK");
-+ });
+    switch (event.type) {
+      case "checkout.session.completed":
+        console.log("💰 Checkout completed");
+        break;
+      case "invoice.payment_succeeded":
+        console.log("🎉 Payment succeeded");
+        break;
+      case "customer.subscription.created":
+        console.log("📦 Subscription created");
+        break;
+      case "customer.subscription.updated":
+        console.log("🔄 Subscription updated");
+        break;
+      case "customer.subscription.deleted":
+        console.log("❌ Subscription canceled");
+        break;
+      default:
+        console.log("Unhandled event:", event.type);
+    }
 
-+ // START SERVER (moved to bottom)
-+ const PORT = process.env.PORT || 10000;
-+ app.listen(PORT, () => {
-+   console.log(`Backend listening on port ${PORT}`);
-+ });
+    res.status(200).send("OK");
+  }
+);
+
+// --- START SERVER ---
+const PORT = process.env.PORT || 10000;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Backend listening on port ${PORT}`);
+});
